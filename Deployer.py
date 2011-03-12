@@ -13,6 +13,10 @@ class Deployer:
 	configFileName = "deploy.ini"
 	logFileName = "deployer.log"
 	
+	sourceFiles = {}
+	updatedFiles = {}
+	redundantFiles = []
+	
 	def __init__ (self):
 		"""
 		Set up the deployer
@@ -26,7 +30,7 @@ class Deployer:
 		from argparse import ArgumentParser
 		parser = ArgumentParser(description = "Deploy web applications to an FTP server")
 		parser.add_argument("-d", "--dry-run", dest = "dry", default = False, action = "store_true", help = "Perform a check without changing the files at the destination")
-		parser.add_argument("-c", "--config-file", dest = "config", default = self.configFileName, help = "The name of the configuration file")
+		parser.add_argument("-c", "--config-file", dest = "config", default = self.configFileName, help = "The name of the (optional) configuration file (defaults to {0})".format(self.configFileName))
 		parser.add_argument("-s", "--section", dest = "section", default = None, help = "The section of a configuration file to read from")
 		parser.add_argument("-y", "--yes", dest = "confirm", default = True, action = "store_false", help = "Apply changes without confirmation (Use reasonably)")
 		parser.add_argument("-q", "--quiet", dest = "quiet", default = False, action = "store_true", help = "Process the script quietly, whithout any output")
@@ -56,26 +60,29 @@ class Deployer:
 			except configparser.NoSectionError:
 				self.output("There is no section named {0} in the configuration file".format(self.options.section), error = True) 
 	
-	def isIgnored (self, filename):
+	def isIgnored (self, fileName):
 		"""
 		Check if given file should be ignored according to configuration
 		"""
-		if filename == self.options.config:
+		if fileName == self.options.config:
 			return True
 		if self.ignoreDirs is None:
 			self.ignoreDirs = []
-			for item in self.options.ignoredirs.split(":"):
-				if item.endswith("/"):
-					item = item + ".*"
-				self.ignoreDirs.append(re.compile(item))
+			try:
+				for item in self.options.ignoredirs.split(":"):
+					if item.endswith("/"):
+						item = item + ".*"
+					self.ignoreDirs.append(re.compile(item))
+			except AttributeError:
+				pass
 		for rule in self.ignoreDirs:
-			if rule.match(filename):
+			if rule.match(fileName):
 				return True
 		return False
 	
-	def run (self):
+	def connect (self):
 		"""
-		Process the deployment
+		Connect to FTP server
 		"""
 		options = self.options
 		try:
@@ -83,24 +90,70 @@ class Deployer:
 		except ConnectionError as error:
 			self.output(str(error), error = True)
 			sys.exit(1)
-		destination = Destination(self, self.connection, self.options.quiet)
-		source = Source(self, os.getcwd(), self.options.quiet)
-		updatedFiles = {}
-		sourceFiles = {}
-		for filename, filesum in source.getFiles():
-			if not self.isIgnored(filename):
-				if not destination.isHashEqual(filename, filesum):
-					updatedFiles[filename] = filesum
-				sourceFiles[filename] = filesum
+	
+	def getSourceFiles (self, source):
+		"""
+		Get a file name: file sum dictionary of source files
+		"""
+		if not self.sourceFiles:
+			for fileName, fileSum in source.getFiles():
+				if not self.isIgnored(fileName):
+					self.sourceFiles[fileName] = fileSum
+		return self.sourceFiles
+	
+	def getUpdatedFiles (self, source, destination):
+		"""
+		Get a file name: file sum dictionary of updated files
+		"""
+		if not self.updatedFiles:
+			for fileName, fileSum in self.getSourceFiles(source).items():
+				if not (destination.hasFile(fileName) and destination.getHash(fileName) == fileSum):
+					self.updatedFiles[fileName] = fileSum
+		return self.updatedFiles
+	
+	def getRedundantFiles (self, source, destination):
+		"""
+		Get a list of files that are no longer present in the source but are still in the destination
+		"""
+		if not self.redundantFiles:
+			self.redundantFiles = destination.getFileList()
+			for fileName in (list(self.getSourceFiles(source).keys()) + [self.logFileName]):
+				if fileName in self.redundantFiles:
+					self.redundantFiles.remove(fileName)
+		return self.redundantFiles
+	
+	def renameUpdatedFiles (self, destination, updatedFiles, listener = None):
+		"""
+		Rename successfully updated files in the destination
+		"""
+		if listener:
+			fileCount = len(updatedFiles)
+			finished = 0
+		for fileName in updatedFiles:
+			destination.rename(fileName + ".new", fileName)
+			if listener:
+				finished += 1
+				listener.setValue((finished/fileCount) * 100)
+		if listener:
+			listener.finish()
+	
+	def run (self):
+		"""
+		Process the deployment
+		"""
+		options = self.options
+		self.connect()
+		destination = Destination(self, self.connection, options.quiet)
+		source = Source(self, os.getcwd(), options.quiet)
+		sourceFiles = self.getSourceFiles(source)
+		updatedFiles = self.getUpdatedFiles(source, destination)
 		updatedFileNames = sorted(updatedFiles.keys())
+		redundantFiles = self.getRedundantFiles(source, destination)
 		if updatedFiles:
 			self.output("Files to be uploaded:", important = True)
 			self.output("\n".join(updatedFileNames))
 		else:
 			self.output("No files to be uploaded.", important = True)
-		redundantFiles = destination.getRedundantFiles(sourceFiles)
-		if self.logFileName in redundantFiles: 
-			redundantFiles.remove(self.logFileName)
 		if redundantFiles:
 			self.output("Files to be deleted:", important = True)
 			self.output("\n".join(redundantFiles))
@@ -108,32 +161,40 @@ class Deployer:
 			if options.confirm and not options.quiet:
 				self.confirm("Do you want to apply these changes?")
 			if updatedFiles: self.output("Uploading new files...", important = True) 
-			for filename in updatedFileNames:
-				destination.upload(filename)
+			for fileName in updatedFileNames:
+				destination.upload(fileName)
 			if redundantFiles: self.output("Removing redundant files...", important = True) 
-			for filename in redundantFiles:
-				destination.remove(filename)
-			destination.applyChanges(updatedFiles, sourceFiles)
-			if options.log:
-				with io.StringIO() as logFile:
-					self.output("Logging changes...", important = True)
-					try:
-						self.connection.download(self.logFileName, logFile)
-						logFile.read() # We want to append to the log file
-					except FileNotFoundError:
-						pass
-					date = time.strftime("%d/%b/%Y %H:%M", time.gmtime())
-					changeList = []
-					if updatedFiles:
-						changeList.append("\t" + "Updated Files:")
-						for filename in updatedFileNames:
-							changeList.append("\t\t" + filename)
-					if redundantFiles:
-						changeList.append("\t" + "Removed Files:")
-						for filename in redundantFiles:
-							changeList.append("\t\t" + filename)
-					logFile.write("[{0}]\n{1}\n".format(date, "\n".join(changeList)))
-					self.connection.upload(logFile, self.logFileName, safe = True)
+			for fileName in redundantFiles:
+				destination.remove(fileName)
+			self.renameUpdatedFiles(destination, updatedFiles, Progressbar("Renaming successfully uploaded files"))
+			destination.rebuildFileList(sourceFiles)
+			self.log(updatedFiles, redundantFiles)
+	
+	def log (self, updatedFiles, redundantFiles):
+		"""
+		Log changes to a file in the destination
+		"""
+		if options.log:
+			with io.StringIO() as logFile:
+				self.output("Logging changes...", important = True)
+				try:
+					self.connection.download(self.logFileName, logFile)
+					logFile.read() # We want to append to the log file
+				except FileNotFoundError:
+					pass
+				date = time.strftime("%d/%b/%Y %H:%M", time.gmtime())
+				changeList = []
+				if updatedFiles:
+					changeList.append("\t" + "Updated Files:")
+					for fileName in updatedFileNames:
+						changeList.append("\t\t" + fileName)
+				if redundantFiles:
+					changeList.append("\t" + "Removed Files:")
+					for fileName in redundantFiles:
+						changeList.append("\t\t" + fileName)
+				logFile.write("[{0}]\n{1}\n".format(date, "\n".join(changeList)))
+				self.connection.upload(logFile, self.logFileName, safe = True)
+		
 	
 	def output (self, message, important = False, error = False, breakLine = True):
 		"""
@@ -182,7 +243,7 @@ class Namespace:
 		"""
 		Return a string representation of the namespace
 		"""
-		return "Namespace({0})".format(", ".join(["%s: %s" % (key, value) for key, value in self.__dict__.items()]))
+		return "Namespace({0})".format(", ".join(["{0}: {1}".format(key, value) for key, value in self.__dict__.items()]))
 
 import sys
 
@@ -337,12 +398,12 @@ class FTPConnection:
 		"""
 		self.ftp.rename(original, new)
 	
-	def remove (self, filename):
+	def remove (self, fileName):
 		"""
 		Remove a file on the server
 		"""
 		try:
-			self.ftp.delete(filename)
+			self.ftp.delete(fileName)
 		except ftplib.error_perm:
 			raise FileNotFoundError
 	
@@ -473,9 +534,9 @@ class Source:
 		A generator of (File name, File's hash) tuples
 		"""
 		import hashlib
-		for filename in self.files:
+		for fileName in self.files:
 			try:
-				yield (filename, hashlib.sha1(open(filename, "rb").read()).hexdigest())
+				yield (fileName, hashlib.sha1(open(fileName, "rb").read()).hexdigest())
 			except IOError:
 				pass
 
@@ -492,74 +553,66 @@ class Destination:
 		self.quiet = quiet
 		self.files = DestinationInfo(self.connection)
 	
-	def isHashEqual (self, path, filesum):
-		"""
-		Check if the given file and hash correspond to the state of the destination
-		"""
-		if path in self.files:
-			return self.files[path] == filesum
-		else:
-			return False
-	
 	def getRedundantFiles (self, sourceFiles):
 		"""
 		Get a list of files that are no longer present in the source but remain in the destination
 		"""
 		result = self.files.getNames()
-		for filename in sourceFiles.keys():
-			if filename in result:
-				result.remove(filename)
+		for fileName in sourceFiles.keys():
+			if fileName in result:
+				result.remove(fileName)
 		return result
 	
-	def download (self, path, filename):
+	def getFileList (self):
+		return self.files.getNames()
+	
+	def download (self, path, fileName):
 		"""
 		Download a file from the destination
 		"""
 		try:
-			with open(filename, "wb") as destinationFile:
-				self.connection.download(path, destinationFile, Progressbar(filename))
+			with open(fileName, "wb") as destinationFile:
+				self.connection.download(path, destinationFile, Progressbar(fileName))
 		except FileNotFoundError:
-			os.remove(filename)
+			os.remove(fileName)
 			raise FileNotFoundError
 	
-	def upload (self, path, filename = None, rename = False):
+	def upload (self, path, fileName = None, rename = False):
 		"""
 		Upload a file to the destination
 		"""
-		if filename is None:
-			filename = path
+		if fileName is None:
+			fileName = path
 		with open(path, "rb") as sourceFile:
-			self.connection.upload(sourceFile, filename, safe = True, rename = rename, listener = Progressbar(filename) if not self.quiet else None)
+			self.connection.upload(sourceFile, fileName, safe = True, rename = rename, listener = Progressbar(fileName) if not self.quiet else None)
 		fileStat = os.stat(path)
 		perms = oct(fileStat.st_mode & 0o777).split("o")[1]
 		self.connection.chmod(path, perms)
 	
-	def remove (self, filename):
+	def remove (self, fileName):
 		"""
 		Remove a file from the destination
 		"""
-		self.controller.output("Removing {0}...".format(filename))
+		self.controller.output("Removing {0}...".format(fileName))
 		try:
-			self.connection.remove(filename)
+			self.connection.remove(fileName)
 		except FileNotFoundError:
 			pass
 	
-	def applyChanges (self, updatedFiles, sourceFiles):
+	def rebuildFileList (self, sourceFiles):
+		self.files.rebuild(sourceFiles)
+	
+	def hasFile (self, fileName):
 		"""
-		Update the destination information and rename the uploaded files to their original names
+		Is given file name present in the destination?
 		"""
-		self.files.update(sourceFiles)
-		if not self.quiet:
-			renaming = Progressbar("Renaming successfully uploaded files")
-		fileCount = len(updatedFiles.keys())
-		renamedFiles = 0
-		for item in updatedFiles.keys():
-			self.connection.rename(item + ".new", item)
-			renamedFiles += 1
-			if not self.quiet:
-				renaming.setValue((renamedFiles/fileCount) * 100)
-		if not self.quiet:
-			renaming.finish()
+		return self.files.__contains__(fileName)
+		
+	def getHash (self, fileName):
+		"""
+		Get the hash of given file
+		"""
+		return self.files[fileName]
 
 class DestinationInfo:
 	"""
@@ -583,11 +636,11 @@ class DestinationInfo:
 			except FileNotFoundError:
 				pass
 	
-	def __getitem__ (self, filename):
+	def __getitem__ (self, fileName):
 		"""
 		Get a file's hash
 		"""
-		return self.files[filename]
+		return self.files[fileName]
 	
 	def __contains__ (self, key):
 		"""
@@ -601,12 +654,12 @@ class DestinationInfo:
 		"""
 		return list(self.files.keys())
 	
-	def update (self, data):
+	def rebuild (self, sourceFiles):
 		"""
 		Create a new destination information file and upload it to the destination
 		"""
 		with io.StringIO() as objectsFile:
-			objectsFile.write("\n".join(["{0}: {1}".format(filename, filesum) for filename, filesum in data.items()]))
+			objectsFile.write("\n".join(["{0}: {1}".format(fileName, fileSum) for fileName, fileSum in sourceFiles.items()]))
 			self.connection.upload(objectsFile, self.objectsFileName, safe = True, listener = Progressbar("Updating object list") if not self.quiet else None)
 
 if __name__ == "__main__":
