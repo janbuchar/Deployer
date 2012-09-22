@@ -2,16 +2,41 @@
 # TODO: config file, TESTING, IO encoding/decoding, empty directories with permissions...
 import re, os, sys, io, time
 
+class Options:
+	def __init__ (self):
+		self.dry = False
+		self.configFile = "deploy.ini"
+		self.logFile = "deployer.log"
+		self.section = None
+		self.confirm = True
+		self.quiet = False
+		self.log = True
+		self.host = None
+		self.username = None
+		self.password = None
+		self.path = None
+		self._ignored = []
+	
+	@property
+	def ignored (self):
+		return self._ignored
+	
+	@ignored.setter
+	def ignored (self, value):
+		self._ignored += value.split(':') if isinstance(value, str) else value
+	
+	def __repr__ (self):
+		return 'Options({0})'.format(repr(self.__dict__));
+
 class Deployer:
 	"""
 	The script's controller class
 	"""
 	noticeColor = 36
 	errorColor = 31
-	ignoreDirs = None
 	commonSection = "common"
-	configFileName = "deploy.ini"
-	logFileName = "deployer.log"
+	
+	ignorePatterns = None
 	
 	sourceFiles = {}
 	updatedFiles = {}
@@ -21,7 +46,7 @@ class Deployer:
 		"""
 		Set up the deployer
 		"""
-		self.options = Namespace()
+		self.options = Options()
 	
 	def loadArgs (self):
 		"""
@@ -29,17 +54,20 @@ class Deployer:
 		"""
 		from argparse import ArgumentParser
 		parser = ArgumentParser(description = "Deploy web applications to an FTP server")
-		parser.add_argument("-d", "--dry-run", dest = "dry", default = False, action = "store_true", help = "Perform a check without changing the files at the destination")
-		parser.add_argument("-c", "--config-file", dest = "config", default = self.configFileName, help = "The name of the (optional) configuration file (defaults to {0})".format(self.configFileName))
-		parser.add_argument("-s", "--section", dest = "section", default = None, help = "The section of a configuration file to read from")
-		parser.add_argument("-y", "--yes", dest = "confirm", default = True, action = "store_false", help = "Apply changes without confirmation (Use reasonably)")
-		parser.add_argument("-q", "--quiet", dest = "quiet", default = False, action = "store_true", help = "Process the script quietly, whithout any output")
-		parser.add_argument("-l", "--no-logging", dest = "log", default = True, action = "store_true", help = "Don't log anything on the server")
-		parser.add_argument("-a", "--address", dest = "host", default = None, help = "FTP server address")
-		parser.add_argument("-u", "--username", dest = "username", default = None, help = "FTP server username")
-		parser.add_argument("-p", "--password", dest = "password", default = None, help = "FTP server password")
-		parser.add_argument("--path", dest = "path", default = None, help = "Path to the root of the application on the FTP server")
-		parser.parse_args(namespace = self.options)
+		parser.add_argument("-d", "--dry-run", dest = "dry", action = "store_true", help = "Perform a check without changing the files at the destination")
+		parser.add_argument("-c", "--config-file", dest = "configFile", help = "The name of the (optional) configuration file (defaults to {0})".format(self.options.configFile))
+		parser.add_argument("-s", "--section", dest = "section", help = "The section of a configuration file to read from")
+		parser.add_argument("-y", "--yes", dest = "confirm", action = "store_false", help = "Apply changes without confirmation (Use reasonably)")
+		parser.add_argument("-q", "--quiet", dest = "quiet", action = "store_true", help = "Process the script quietly, without any output")
+		parser.add_argument("-l", "--no-logging", dest = "log", action = "store_true", help = "Don't log anything on the server")
+		parser.add_argument("-a", "--address", dest = "host", help = "FTP server address")
+		parser.add_argument("-u", "--username", dest = "username", help = "FTP server username")
+		parser.add_argument("-p", "--password", dest = "password", help = "FTP server password")
+		parser.add_argument("-i", "--ignore", dest = "ignored", nargs = "+", action = "append", help = "Ignored files/directories")
+		parser.add_argument("--path", dest = "path", help = "Path to the root of the application on the FTP server")
+		for key, value in parser.parse_args().__dict__.items():
+			if value:
+				setattr(self.options, key, value)
 	
 	def loadConfig (self, path = None):
 		"""
@@ -47,7 +75,7 @@ class Deployer:
 		"""
 		import configparser
 		parser = configparser.ConfigParser()
-		parser.read(self.options.config)
+		parser.read(self.options.configFile)
 		try:
 			for option, value in parser.items(self.commonSection):
 				setattr(self.options, option, value)
@@ -64,18 +92,18 @@ class Deployer:
 		"""
 		Check if given file should be ignored according to configuration
 		"""
-		if fileName == self.options.config:
+		if fileName == self.options.configFile:
 			return True
-		if self.ignoreDirs is None:
-			self.ignoreDirs = []
+		if self.ignorePatterns is None:
+			self.ignorePatterns = []
 			try:
-				for item in self.options.ignoredirs.split(":"):
+				for item in self.options.ignored:
 					if item.endswith("/"):
 						item = item + ".*"
-					self.ignoreDirs.append(re.compile(item))
+					self.ignorePatterns.append(re.compile(item))
 			except AttributeError:
 				pass
-		for rule in self.ignoreDirs:
+		for rule in self.ignorePatterns:
 			if rule.match(fileName):
 				return True
 		return False
@@ -117,7 +145,7 @@ class Deployer:
 		"""
 		if not self.redundantFiles:
 			self.redundantFiles = destination.getFileList()
-			for fileName in (list(self.getSourceFiles(source).keys()) + [self.logFileName]):
+			for fileName in (list(self.getSourceFiles(source).keys()) + [self.options.logFile]):
 				if fileName in self.redundantFiles:
 					self.redundantFiles.remove(fileName)
 		return self.redundantFiles
@@ -143,8 +171,8 @@ class Deployer:
 		"""
 		options = self.options
 		self.connect()
-		destination = Destination(self, self.connection, options.quiet)
-		source = Source(self, os.getcwd(), options.quiet)
+		destination = Destination(self, self.connection)
+		source = Source(self, os.getcwd())
 		sourceFiles = self.getSourceFiles(source)
 		updatedFiles = self.getUpdatedFiles(source, destination)
 		updatedFileNames = sorted(updatedFiles.keys())
@@ -160,13 +188,15 @@ class Deployer:
 		if not options.dry and (updatedFiles or redundantFiles):
 			if options.confirm and not options.quiet:
 				self.confirm("Do you want to apply these changes?")
-			if updatedFiles: self.output("Uploading new files...", important = True) 
-			for fileName in updatedFileNames:
-				destination.upload(fileName)
-			if redundantFiles: self.output("Removing redundant files...", important = True) 
-			for fileName in redundantFiles:
-				destination.remove(fileName)
-			self.renameUpdatedFiles(destination, updatedFiles, Progressbar("Renaming successfully uploaded files"))
+			if updatedFiles: 
+				self.output("Uploading new files...", important = True) 
+				for fileName in updatedFileNames:
+					destination.upload(fileName)
+			if redundantFiles: 
+				self.output("Removing redundant files...", important = True) 
+				for fileName in redundantFiles:
+					destination.remove(fileName)
+			self.renameUpdatedFiles(destination, updatedFiles, self.getListener("Renaming successfully uploaded files"))
 			destination.rebuildFileList(sourceFiles)
 			self.log(updatedFiles, redundantFiles)
 	
@@ -174,11 +204,11 @@ class Deployer:
 		"""
 		Log changes to a file in the destination
 		"""
-		if options.log:
+		if self.options.log:
 			with io.StringIO() as logFile:
 				self.output("Logging changes...", important = True)
 				try:
-					self.connection.download(self.logFileName, logFile)
+					self.connection.download(self.options.logFile, logFile)
 					logFile.read() # We want to append to the log file
 				except FileNotFoundError:
 					pass
@@ -186,15 +216,14 @@ class Deployer:
 				changeList = []
 				if updatedFiles:
 					changeList.append("\t" + "Updated Files:")
-					for fileName in updatedFileNames:
+					for fileName in sorted(updatedFiles.keys()):
 						changeList.append("\t\t" + fileName)
 				if redundantFiles:
 					changeList.append("\t" + "Removed Files:")
 					for fileName in redundantFiles:
 						changeList.append("\t\t" + fileName)
 				logFile.write("[{0}]\n{1}\n".format(date, "\n".join(changeList)))
-				self.connection.upload(logFile, self.logFileName, safe = True)
-		
+				self.connection.upload(logFile, self.options.logFile, safe = True)
 	
 	def output (self, message, important = False, error = False, breakLine = True):
 		"""
@@ -209,6 +238,12 @@ class Deployer:
 			if breakLine:
 				message = message + "\n"
 			stream.write(message)
+	
+	def getListener (self, message):
+		"""
+		Get a progress listener
+		"""
+		return Progressbar(message) if not self.options.quiet else None
 	
 	def confirm (self, question):
 		"""
@@ -227,23 +262,6 @@ class Deployer:
 		self.connection.disconnect()
 		self.output("Deployer aborted", important = True)
 		sys.exit(1)
-
-class Namespace:
-	"""
-	A variable container object
-	"""
-	def __init__ (self, **kwargs):
-		"""
-		Set up the namespace, save construction arguments
-		"""
-		for key, value in kwargs.items():
-			setattr(self, key, value)
-	
-	def __repr__ (self):
-		"""
-		Return a string representation of the namespace
-		"""
-		return "Namespace({0})".format(", ".join(["{0}: {1}".format(key, value) for key, value in self.__dict__.items()]))
 
 import sys
 
@@ -460,7 +478,7 @@ class FTPConnection:
 		remotePath = path[slashPosition + 1 : ] if slashPosition else path
 		if safe:
 			originalPath = remotePath
-			remotePath += ".new"
+			remotePath = self.getSafeFilename(remotePath)
 		if slashPosition:
 			self.cd(path[0 : slashPosition])
 		self.ftp.voidcmd("TYPE I")
@@ -488,6 +506,9 @@ class FTPConnection:
 	
 	def chmod (self, path, perms):
 		self.ftp.voidcmd("SITE CHMOD {0} {1}".format(perms, path))
+	
+	def getSafeFilename (self, filename):
+		return filename + '.new'
 
 class FileNotFoundError (BaseException):
 	"""
@@ -503,15 +524,18 @@ class Source:
 	"""
 	A representation of the local directory to be deployed
 	"""
-	def __init__ (self, controller, path = None, quiet = False):
+	
+	files = []
+	dirs = []
+	
+	def __init__ (self, controller, path = None):
 		"""
 		Set up the source object, get a list of available files
 		"""
 		self.controller = controller
-		self.quiet = quiet
-		self.files = self.scanFiles(path)
+		self.scanFiles(path)
 	
-	def scanFiles (self, path):
+	def scanFiles (self, path = None):
 		"""
 		Scan the source directory for available files
 		"""
@@ -526,8 +550,9 @@ class Source:
 			else:
 				result.append(itemPath)
 		for subdir in subdirs:
-			result += self.scanFiles(subdir)
-		return result
+			self.dirs.append(subdir + "/")
+			self.scanFiles(subdir)
+		self.files += result
 	
 	def getFiles (self):
 		"""
@@ -539,19 +564,24 @@ class Source:
 				yield (fileName, hashlib.sha1(open(fileName, "rb").read()).hexdigest())
 			except IOError:
 				pass
+			
+	def getDirs (self):
+		"""
+		Get a list of subdirectories in the source
+		"""
+		return self.dirs
 
 class Destination:
 	"""
 	An object representation of the deployment's destination
 	"""
-	def __init__ (self, controller, connection, quiet = False):
+	def __init__ (self, controller, connection):
 		"""
 		Set up the destination object
 		"""
 		self.controller = controller
 		self.connection = connection
-		self.quiet = quiet
-		self.files = DestinationInfo(self.connection)
+		self.files = DestinationInfo(controller, self.connection)
 	
 	def getRedundantFiles (self, sourceFiles):
 		"""
@@ -572,10 +602,18 @@ class Destination:
 		"""
 		try:
 			with open(fileName, "wb") as destinationFile:
-				self.connection.download(path, destinationFile, Progressbar(fileName))
+				self.connection.download(path, destinationFile, self.controller.getListener(fileName))
 		except FileNotFoundError:
 			os.remove(fileName)
 			raise FileNotFoundError
+	
+	def mkdir (self, path):
+		"""
+		Create a directory in the destination with its permissions preserved
+		"""
+		perms = oct(os.stat(path).st_mode & 0o777).split("o")[1]
+		self.connection.mkdir(path)
+		self.connection.chmod(path, perms)
 	
 	def upload (self, path, fileName = None, rename = False):
 		"""
@@ -584,10 +622,16 @@ class Destination:
 		if fileName is None:
 			fileName = path
 		with open(path, "rb") as sourceFile:
-			self.connection.upload(sourceFile, fileName, safe = True, rename = rename, listener = Progressbar(fileName) if not self.quiet else None)
+			self.connection.upload(sourceFile, fileName, safe = True, rename = rename, listener = self.controller.getListener(fileName))
 		fileStat = os.stat(path)
 		perms = oct(fileStat.st_mode & 0o777).split("o")[1]
-		self.connection.chmod(path, perms)
+		self.connection.chmod(self.connection.getSafeFilename(path) if not rename else path, perms)
+	
+	def rename (self, original, new):
+		"""
+		Rename a file in the destination
+		"""
+		self.connection.rename(original, new)
 	
 	def remove (self, fileName):
 		"""
@@ -600,13 +644,16 @@ class Destination:
 			pass
 	
 	def rebuildFileList (self, sourceFiles):
+		"""
+		Parse the list of source files into a new destination info file
+		"""
 		self.files.rebuild(sourceFiles)
 	
 	def hasFile (self, fileName):
 		"""
 		Is given file name present in the destination?
 		"""
-		return self.files.__contains__(fileName)
+		return fileName in self.files
 		
 	def getHash (self, fileName):
 		"""
@@ -616,20 +663,20 @@ class Destination:
 
 class DestinationInfo:
 	"""
-	An object representation of a file contatining the information about the destination
+	An object representation of the file contatining the information about the destination
 	"""
 	files = {}
 	
-	def __init__ (self, connection, quiet = False, objectsFileName = ".objects"):
+	def __init__ (self, controller, connection, objectsFileName = ".objects"):
 		"""
 		Try to download the destination information file from the server and parse it
 		"""
 		self.connection = connection
-		self.quiet = quiet
+		self.controller = controller
 		self.objectsFileName = objectsFileName
 		with io.StringIO() as objectsFile:
 			try:
-				connection.download(objectsFileName, objectsFile, listener = Progressbar("Getting object list") if not self.quiet else None)
+				connection.download(objectsFileName, objectsFile, listener = controller.getListener("Getting object list"))
 				for line in objectsFile:
 					(objectName, objectHash) = line.split(":")
 					self.files[objectName.strip()] = objectHash.strip()
@@ -660,7 +707,7 @@ class DestinationInfo:
 		"""
 		with io.StringIO() as objectsFile:
 			objectsFile.write("\n".join(["{0}: {1}".format(fileName, fileSum) for fileName, fileSum in sourceFiles.items()]))
-			self.connection.upload(objectsFile, self.objectsFileName, safe = True, listener = Progressbar("Updating object list") if not self.quiet else None)
+			self.connection.upload(objectsFile, self.objectsFileName, safe = True, listener = self.controller.getListener("Updating object list"))
 
 if __name__ == "__main__":
 	deployer = Deployer()
