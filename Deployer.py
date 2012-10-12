@@ -25,37 +25,23 @@ class Options:
 	def ignored (self, value):
 		self._ignored += value.split(':') if isinstance(value, str) else value
 	
+	def __iadd__ (self, options):
+		for option, value in options.__dict__.items():
+			setattr(self, option, value)
+	
 	def __repr__ (self):
 		return 'Options({0})'.format(repr(self.__dict__));
 
-class Deployer:
-	"""
-	The script's controller class
-	"""
-	noticeColor = 36
-	errorColor = 31
-	commonSection = "common"
-	
-	ignorePatterns = None
-	
-	sourceFiles = {}
-	updatedFiles = {}
-	redundantFiles = []
-	
-	def __init__ (self):
-		"""
-		Set up the deployer
-		"""
-		self.options = Options()
-	
-	def loadArgs (self):
+class ArgumentOptionsParser:
+	def load (self):
 		"""
 		Parse command line arguments
 		"""
 		from argparse import ArgumentParser
+		options = Options()
 		parser = ArgumentParser(description = "Deploy web applications to an FTP server")
 		parser.add_argument("-d", "--dry-run", dest = "dry", action = "store_true", help = "Perform a check without changing the files at the destination")
-		parser.add_argument("-c", "--config-file", dest = "configFile", help = "The name of the (optional) configuration file (defaults to {0})".format(self.options.configFile))
+		parser.add_argument("-c", "--config-file", dest = "configFile", help = "The name of the (optional) configuration file (defaults to {0})".format(options.configFile))
 		parser.add_argument("-s", "--section", dest = "section", help = "The section of a configuration file to read from")
 		parser.add_argument("-y", "--yes", dest = "confirm", action = "store_false", help = "Apply changes without confirmation (Use reasonably)")
 		parser.add_argument("-q", "--quiet", dest = "quiet", action = "store_true", help = "Process the script quietly, without any output")
@@ -67,26 +53,45 @@ class Deployer:
 		parser.add_argument("--path", dest = "path", help = "Path to the root of the application on the FTP server")
 		for key, value in parser.parse_args().__dict__.items():
 			if value:
-				setattr(self.options, key, value)
+				setattr(options, key, value)
+		return options
+
+class ConfigOptionsParser:
+	commonSection = "common"
 	
-	def loadConfig (self, path = None):
+	def load (self, configFile, section = None):
 		"""
 		Load and parse the configuration file
 		"""
 		import configparser
+		options = Options()
 		parser = configparser.ConfigParser()
-		parser.read(self.options.configFile)
+		parser.read(configFile)
 		try:
 			for option, value in parser.items(self.commonSection):
-				setattr(self.options, option, value)
+				setattr(options, option, value)
 		except configparser.NoSectionError:
 			pass
-		if self.options.section:
+		if section:
 			try:
-				for option, value in parser.items(self.options.section):
+				for option, value in parser.items(section):
 					setattr(self.options, option, value)
 			except configparser.NoSectionError:
-				self.output("There is no section named {0} in the configuration file".format(self.options.section), error = True) 
+				pass
+		return options
+
+class Deployer:
+	"""
+	The script's controller class
+	"""
+	noticeColor = 36
+	errorColor = 31
+	
+	ignorePatterns = None
+	
+	sourceFiles = {}
+	updatedFiles = {}
+	redundantFiles = []
 	
 	def isIgnored (self, fileName):
 		"""
@@ -165,11 +170,11 @@ class Deployer:
 		if listener:
 			listener.finish()
 	
-	def run (self):
+	def run (self, options):
 		"""
 		Process the deployment
 		"""
-		options = self.options
+		self.options = options
 		self.connect()
 		destination = Destination(self, self.connection)
 		source = Source(self, os.getcwd())
@@ -712,8 +717,9 @@ class DestinationInfo:
 if __name__ == "__main__":
 	deployer = Deployer()
 	try:
-		deployer.loadArgs()
-		deployer.loadConfig()
-		deployer.run()
+		args = ArgumentOptionsParser().load()
+		config = ConfigOptionsParser().load(args.configFile, args.section)
+		config += args
+		deployer.run(config)
 	except KeyboardInterrupt:
 		deployer.interrupt()
