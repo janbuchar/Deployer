@@ -1,23 +1,27 @@
-usage: Deployer.py [-h] [-d] [-c CONFIG] [-s SECTION] [-y] [-q] [-l] [-a HOST]                                                                                                                                    
-                   [-u USERNAME] [-p PASSWORD] [--path PATH]                                                                                                                                                      
-                                                                                                                                                                                                                  
-Deploy web applications to an FTP server                                                                                                                                                                          
-                                                                                                                                                                                                                  
-optional arguments:                                                                                                                                                                                               
-  -h, --help            show this help message and exit                                                                                                                                                           
-  -d, --dry-run         Perform a check without changing the files at the                                                                                                                                         
-                        destination                                                                                                                                                                               
-  -c CONFIG, --config-file CONFIG                                                                                                                                                                                 
-                        The name of the configuration file                                                                                                                                                        
-  -s SECTION, --section SECTION                                                                                                                                                                                   
-                        The section of a configuration file to read from                                                                                                                                          
-  -y, --yes             Apply changes without confirmation (Use reasonably)                                                                                                                                       
-  -q, --quiet           Process the script quietly, whithout any output                                                                                                                                           
-  -l, --no-logging      Don't log anything on the server                                                                                                                                                          
-  -a HOST, --address HOST                                                                                                                                                                                         
-                        FTP server address                                                                                                                                                                        
-  -u USERNAME, --username USERNAME                                                                                                                                                                                
-                        FTP server username                                                                                                                                                                       
-  -p PASSWORD, --password PASSWORD                                                                                                                                                                                
-                        FTP server password                                                                                                                                                                       
+usage: Deployer.py [-h] [-d] [-c CONFIGFILE] [-s SECTION] [-y] [-q] [-l]
+                   [-a HOST] [-u USERNAME] [-p PASSWORD]
+                   [-i IGNORED [IGNORED ...]] [--path PATH]
+
+Deploy web applications to an FTP server
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d, --dry-run         Perform a check without changing the files at the
+                        destination
+  -c CONFIGFILE, --config-file CONFIGFILE
+                        The name of the (optional) configuration file
+                        (defaults to deploy.ini)
+  -s SECTION, --section SECTION
+                        The section of a configuration file to read from
+  -y, --yes             Apply changes without confirmation (Use reasonably)
+  -q, --quiet           Process the script quietly, without any output
+  -l, --no-logging      Don't log anything on the server
+  -a HOST, --address HOST
+                        FTP server address
+  -u USERNAME, --username USERNAME
+                        FTP server username
+  -p PASSWORD, --password PASSWORD
+                        FTP server password
+  -i IGNORED [IGNORED ...], --ignore IGNORED [IGNORED ...]
+                        Ignored files/directories
   --path PATH           Path to the root of the application on the FTP server
