@@ -3,19 +3,24 @@
 import re, os, sys, io, time
 
 class Options:
+	defaults = {
+		"dry": False,
+		"configFile": "deploy.ini",
+		"logFile": "deployer.log",
+		"section": None,
+		"confirm": True,
+		"quiet": False,
+		"log": True,
+		"host": None,
+		"username": None,
+		"password": None,
+		"path": None,
+		"_ignored": []
+	}
+	
 	def __init__ (self):
-		self.dry = False
-		self.configFile = "deploy.ini"
-		self.logFile = "deployer.log"
-		self.section = None
-		self.confirm = True
-		self.quiet = False
-		self.log = True
-		self.host = None
-		self.username = None
-		self.password = None
-		self.path = None
-		self._ignored = []
+		for option, value in self.defaults.items():
+			setattr(self, option, value)
 	
 	@property
 	def ignored (self):
@@ -27,7 +32,9 @@ class Options:
 	
 	def __iadd__ (self, options):
 		for option, value in options.__dict__.items():
-			setattr(self, option, value)
+			if value != self.defaults[option]:
+				setattr(self, option, value)
+		return self
 	
 	def __repr__ (self):
 		return 'Options({0})'.format(repr(self.__dict__));
@@ -75,7 +82,7 @@ class ConfigOptionsParser:
 		if section:
 			try:
 				for option, value in parser.items(section):
-					setattr(self.options, option, value)
+					setattr(options, option, value)
 			except configparser.NoSectionError:
 				pass
 		return options
