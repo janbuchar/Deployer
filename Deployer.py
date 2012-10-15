@@ -38,6 +38,9 @@ class Options:
 	
 	def __repr__ (self):
 		return 'Options({0})'.format(repr(self.__dict__));
+	
+	def __setitem__ (self, attr, value):
+		setattr(self, attr, value)
 
 class ArgumentOptionsParser:
 	def load (self):
@@ -60,7 +63,7 @@ class ArgumentOptionsParser:
 		parser.add_argument("--path", dest = "path", help = "Path to the root of the application on the FTP server")
 		for key, value in parser.parse_args().__dict__.items():
 			if value:
-				setattr(options, key, value)
+				options[key] = value
 		return options
 
 class ConfigOptionsParser:
@@ -76,15 +79,28 @@ class ConfigOptionsParser:
 		parser.read(configFile)
 		try:
 			for option, value in parser.items(self.commonSection):
-				setattr(options, option, value)
+				options[option] = value
 		except configparser.NoSectionError:
 			pass
 		if section:
 			try:
 				for option, value in parser.items(section):
-					setattr(options, option, value)
+					options[option] = value
 			except configparser.NoSectionError:
 				pass
+		return options
+	
+	def loadJson (self, configFile, configSection = None):
+		import json
+		options = Options()
+		with open(configFile, 'r') as data:
+			config = json.loads(config)
+			for section in (self.commonSection, configSection)
+				try:
+					for option, value in config[section].items():
+						options[option] = value
+				except KeyError:
+					pass
 		return options
 
 class Deployer:
