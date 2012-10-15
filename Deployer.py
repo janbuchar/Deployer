@@ -136,17 +136,6 @@ class Deployer:
 				return True
 		return False
 	
-	def connect (self):
-		"""
-		Connect to FTP server
-		"""
-		options = self.options
-		try:
-			self.connection = FTPConnection(options.host, options.username, options.password, options.path)
-		except ConnectionError as error:
-			self.output(str(error), error = True)
-			sys.exit(1)
-	
 	def getSourceFiles (self, source):
 		"""
 		Get a file name: file sum dictionary of source files
@@ -193,12 +182,12 @@ class Deployer:
 		if listener:
 			listener.finish()
 	
-	def run (self, options):
+	def run (self, connection, options):
 		"""
 		Process the deployment
 		"""
 		self.options = options
-		self.connect()
+		self.connection = connection
 		destination = Destination(self, self.connection)
 		source = Source(self, os.getcwd())
 		sourceFiles = self.getSourceFiles(source)
@@ -741,8 +730,12 @@ if __name__ == "__main__":
 	deployer = Deployer()
 	try:
 		args = ArgumentOptionsParser().load()
-		config = ConfigOptionsParser().load(args.configFile, args.section)
-		config += args
-		deployer.run(config)
+		options = ConfigOptionsParser().load(args.configFile, args.section)
+		options += args
+		connection = FTPConnection(options.host, options.username, options.password, options.path)
+		deployer.run(connection, options)
 	except KeyboardInterrupt:
 		deployer.interrupt()
+	except ConnectionError as error:
+		self.output(str(error), error = True)
+		sys.exit(1)
