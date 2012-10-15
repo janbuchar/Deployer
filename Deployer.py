@@ -538,12 +538,12 @@ class FTPConnection:
 	def getSafeFilename (self, filename):
 		return filename + '.new'
 
-class FileNotFoundError (BaseException):
+class FileNotFoundError (Exception):
 	"""
 	An error raised if a file was not found on the server
 	"""
 
-class ConnectionError (BaseException):
+class ConnectionError (Exception):
 	"""
 	An error raised if there is a problem with the connection
 	"""
