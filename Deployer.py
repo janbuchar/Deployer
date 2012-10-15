@@ -5,7 +5,7 @@ import re, os, sys, io, time
 class Options:
 	defaults = {
 		"dry": False,
-		"configFile": "deploy.ini",
+		"configFile": "deploy.json",
 		"logFile": "deployer.log",
 		"section": None,
 		"confirm": True,
@@ -69,33 +69,12 @@ class ArgumentOptionsParser:
 class ConfigOptionsParser:
 	commonSection = "common"
 	
-	def load (self, configFile, section = None):
-		"""
-		Load and parse the configuration file
-		"""
-		import configparser
-		options = Options()
-		parser = configparser.ConfigParser()
-		parser.read(configFile)
-		try:
-			for option, value in parser.items(self.commonSection):
-				options[option] = value
-		except configparser.NoSectionError:
-			pass
-		if section:
-			try:
-				for option, value in parser.items(section):
-					options[option] = value
-			except configparser.NoSectionError:
-				pass
-		return options
-	
-	def loadJson (self, configFile, configSection = None):
+	def load (self, configFile, configSection = None):
 		import json
 		options = Options()
 		with open(configFile, 'r') as data:
-			config = json.loads(config)
-			for section in (self.commonSection, configSection)
+			config = json.loads(data.read())
+			for section in (self.commonSection, configSection):
 				try:
 					for option, value in config[section].items():
 						options[option] = value
