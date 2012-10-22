@@ -60,7 +60,7 @@ class Deployer:
 		Get a list of files that are no longer present in the source but are still in the destination
 		"""
 		if not self.redundantFiles:
-			self.redundantFiles = destination.getFileList()
+			self.redundantFiles = destination.getFiles()
 			for fileName in (list(self.getSourceFiles(source).keys()) + [self.options.logFile]):
 				if fileName in self.redundantFiles:
 					self.redundantFiles.remove(fileName)
@@ -243,17 +243,7 @@ class Destination:
 		self.connection = connection
 		self.files = DestinationInfo(controller, self.connection)
 	
-	def getRedundantFiles (self, sourceFiles):
-		"""
-		Get a list of files that are no longer present in the source but remain in the destination
-		"""
-		result = self.files.getNames()
-		for fileName in sourceFiles.keys():
-			if fileName in result:
-				result.remove(fileName)
-		return result
-	
-	def getFileList (self):
+	def getFiles (self):
 		return self.files.getNames()
 	
 	def download (self, path, fileName):
