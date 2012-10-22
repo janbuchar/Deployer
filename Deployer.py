@@ -13,7 +13,7 @@ class Deployer:
 	updatedFiles = {}
 	redundantFiles = []
 	
-	def __init__ (frontend = None):
+	def __init__ (self, frontend = None):
 		self.frontend = frontend
 	
 	def isIgnored (self, fileName):
@@ -158,7 +158,7 @@ class Deployer:
 			listener = self.frontend.getListener()
 			listener.setMessage(message)
 			return listener
-		else
+		else:
 			return None
 	
 	def confirm (self, question):
@@ -364,7 +364,7 @@ if __name__ == "__main__":
 		options = ConfigOptionsParser().load(args.configFile, args.section)
 		options += args
 		connection = FTPConnection(options.host, options.username, options.password, options.path)
-		if self.options.quiet:
+		if options.quiet:
 			deployer = Deployer()
 		else:
 			from ConsoleFrontend import ConsoleFrontend

@@ -2,7 +2,7 @@ class ConsoleFrontend:
 	noticeColor = 36
 	errorColor = 31
 	
-	def getListener ():
+	def getListener (self):
 		return Progressbar()
 	
 	def output (self, message, important = False, error = False, breakLine = True):
