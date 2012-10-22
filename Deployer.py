@@ -6,14 +6,15 @@ class Deployer:
 	"""
 	The script's controller class
 	"""
-	noticeColor = 36
-	errorColor = 31
 	
 	ignorePatterns = None
 	
 	sourceFiles = {}
 	updatedFiles = {}
 	redundantFiles = []
+	
+	def __init__ (frontend = None):
+		self.frontend = frontend
 	
 	def isIgnored (self, fileName):
 		"""
@@ -103,7 +104,8 @@ class Deployer:
 			self.output("\n".join(redundantFiles))
 		if not options.dry and (updatedFiles or redundantFiles):
 			if options.confirm and not options.quiet:
-				self.confirm("Do you want to apply these changes?")
+				if not self.confirm("Do you want to apply these changes?"):
+					self.interrupt()
 			if updatedFiles: 
 				self.output("Uploading new files...", important = True) 
 				for fileName in updatedFileNames:
@@ -145,32 +147,27 @@ class Deployer:
 		"""
 		Output a message on the screen
 		"""
-		if not self.options.quiet:
-			stream = sys.stdout if not error else sys.stderr
-			if error:
-				message = "\033[00;{0}m{1}\033[0;0m".format(self.errorColor, "Error: ") + message
-			elif important:
-				message = "\033[00;{0}m{1}\033[0;0m".format(self.noticeColor, message)
-			if breakLine:
-				message = message + "\n"
-			stream.write(message)
+		if self.frontend:
+			self.frontend.output(message, important, error, breakLine)
 	
 	def getListener (self, message):
 		"""
 		Get a progress listener
 		"""
-		from Progressbar import Progressbar
-		return Progressbar(message) if not self.options.quiet else None
+		if self.frontend:
+			listener = self.frontend.getListener()
+			listener.setMessage(message)
+			return listener
+		else
+			return None
 	
 	def confirm (self, question):
 		"""
 		Ask for confirmation by user
 		"""
-		answer = input(question + " [Y/n] ")
-		if not answer:
-			return
-		if answer[0].lower() != "y":
-			self.interrupt()
+		if self.frontend:
+			return self.frontend.confirm(question)
+		return True
 	
 	def interrupt (self):
 		"""
@@ -362,12 +359,16 @@ class DestinationInfo:
 if __name__ == "__main__":
 	from FTPConnection import FTPConnection
 	from Options import *
-	deployer = Deployer()
 	try:
 		args = ArgumentOptionsParser().load()
 		options = ConfigOptionsParser().load(args.configFile, args.section)
 		options += args
 		connection = FTPConnection(options.host, options.username, options.password, options.path)
+		if self.options.quiet:
+			deployer = Deployer()
+		else:
+			from ConsoleFrontend import ConsoleFrontend
+			deployer = Deployer(ConsoleFrontend())
 		deployer.run(connection, options)
 	except KeyboardInterrupt:
 		deployer.interrupt()
