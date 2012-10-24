@@ -88,9 +88,10 @@ class Deployer:
 		"""
 		self.options = options
 		self.connection = connection
-		destination = Destination(self, self.connection)
-		source = Source(self, os.getcwd())
+		destination = Destination(self.connection)
+		source = Source(os.getcwd())
 		sourceFiles = self.getSourceFiles(source)
+		destinationFiles = destination.getFiles(self.getListener("Getting object list"))
 		updatedFiles = self.getUpdatedFiles(source, destination)
 		updatedFileNames = sorted(updatedFiles.keys())
 		redundantFiles = self.getRedundantFiles(source, destination)
@@ -109,13 +110,14 @@ class Deployer:
 			if updatedFiles: 
 				self.output("Uploading new files...", important = True) 
 				for fileName in updatedFileNames:
-					destination.upload(fileName)
+					destination.upload(fileName, listener = self.getListener(fileName))
 			if redundantFiles: 
 				self.output("Removing redundant files...", important = True) 
 				for fileName in redundantFiles:
+					self.output("Removing {0}...".format(fileName))
 					destination.remove(fileName)
 			self.renameUpdatedFiles(destination, updatedFiles, self.getListener("Renaming successfully uploaded files"))
-			destination.rebuildFileList(sourceFiles)
+			destination.rebuildFileList(sourceFiles, self.getListener("Updating object list"))
 			self.log(updatedFiles, redundantFiles)
 	
 	def log (self, updatedFiles, redundantFiles):
@@ -185,11 +187,10 @@ class Source:
 	files = []
 	dirs = []
 	
-	def __init__ (self, controller, path = None):
+	def __init__ (self, path = None):
 		"""
 		Set up the source object, get a list of available files
 		"""
-		self.controller = controller
 		self.scanFiles(path)
 	
 	def scanFiles (self, path = None):
@@ -232,24 +233,25 @@ class Destination:
 	"""
 	An object representation of the deployment's destination
 	"""
-	def __init__ (self, controller, connection):
+	def __init__ (self, connection):
 		"""
 		Set up the destination object
 		"""
-		self.controller = controller
 		self.connection = connection
-		self.files = DestinationInfo(controller, self.connection)
+		self.files = None
 	
-	def getFiles (self):
+	def getFiles (self, listener = None):
+		if not self.files:
+			self.files = DestinationInfo(self.connection, listener = listener)
 		return self.files.getNames()
 	
-	def download (self, path, fileName):
+	def download (self, path, fileName, listener = None):
 		"""
 		Download a file from the destination
 		"""
 		try:
 			with open(fileName, "wb") as destinationFile:
-				self.connection.download(path, destinationFile, self.controller.getListener(fileName))
+				self.connection.download(path, destinationFile, listener)
 		except FileNotFoundError:
 			os.remove(fileName)
 			raise FileNotFoundError
@@ -262,14 +264,14 @@ class Destination:
 		self.connection.mkdir(path)
 		self.connection.chmod(path, perms)
 	
-	def upload (self, path, fileName = None, rename = False):
+	def upload (self, path, fileName = None, rename = False, listener = None):
 		"""
 		Upload a file to the destination
 		"""
 		if fileName is None:
 			fileName = path
 		with open(path, "rb") as sourceFile:
-			self.connection.upload(sourceFile, fileName, safe = True, rename = rename, listener = self.controller.getListener(fileName))
+			self.connection.upload(sourceFile, fileName, safe = True, rename = rename, listener = listener)
 		fileStat = os.stat(path)
 		perms = oct(fileStat.st_mode & 0o777).split("o")[1]
 		self.connection.chmod(self.connection.getSafeFilename(path) if not rename else path, perms)
@@ -284,17 +286,16 @@ class Destination:
 		"""
 		Remove a file from the destination
 		"""
-		self.controller.output("Removing {0}...".format(fileName))
 		try:
 			self.connection.remove(fileName)
 		except FileNotFoundError:
 			pass
 	
-	def rebuildFileList (self, sourceFiles):
+	def rebuildFileList (self, sourceFiles, listener = None):
 		"""
 		Parse the list of source files into a new destination info file
 		"""
-		self.files.rebuild(sourceFiles)
+		self.files.rebuild(sourceFiles, listener)
 	
 	def hasFile (self, fileName):
 		"""
@@ -314,16 +315,15 @@ class DestinationInfo:
 	"""
 	files = {}
 	
-	def __init__ (self, controller, connection, objectsFileName = ".objects"):
+	def __init__ (self, connection, objectsFileName = ".objects", listener = None):
 		"""
 		Try to download the destination information file from the server and parse it
 		"""
 		self.connection = connection
-		self.controller = controller
 		self.objectsFileName = objectsFileName
 		with io.StringIO() as objectsFile:
 			try:
-				connection.download(objectsFileName, objectsFile, listener = controller.getListener("Getting object list"))
+				connection.download(objectsFileName, objectsFile, listener = listener)
 				for line in objectsFile:
 					(objectName, objectHash) = line.split(":")
 					self.files[objectName.strip()] = objectHash.strip()
@@ -348,13 +348,13 @@ class DestinationInfo:
 		"""
 		return list(self.files.keys())
 	
-	def rebuild (self, sourceFiles):
+	def rebuild (self, sourceFiles, listener = None):
 		"""
 		Create a new destination information file and upload it to the destination
 		"""
 		with io.StringIO() as objectsFile:
 			objectsFile.write("\n".join(["{0}: {1}".format(fileName, fileSum) for fileName, fileSum in sourceFiles.items()]))
-			self.connection.upload(objectsFile, self.objectsFileName, safe = True, listener = self.controller.getListener("Updating object list"))
+			self.connection.upload(objectsFile, self.objectsFileName, safe = True, listener = listener)
 
 if __name__ == "__main__":
 	from FTPConnection import FTPConnection
