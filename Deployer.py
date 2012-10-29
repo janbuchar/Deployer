@@ -7,14 +7,15 @@ class Deployer:
 	The script's controller class
 	"""
 	
-	ignorePatterns = None
-	
-	sourceFiles = {}
-	updatedFiles = {}
-	redundantFiles = []
-	
 	def __init__ (self, frontend = None):
 		self.frontend = frontend
+		
+		self.ignorePatterns = None
+		self.keepPatterns = None
+		
+		self.sourceFiles = {}
+		self.updatedFiles = {}
+		self.redundantFiles = []
 	
 	def isIgnored (self, fileName):
 		"""
@@ -26,6 +27,21 @@ class Deployer:
 			self.ignorePatterns = []
 			try:
 				for item in self.options.ignored:
+					if item.endswith("/"):
+						item = item + ".*"
+					self.ignorePatterns.append(re.compile(item))
+			except AttributeError:
+				pass
+		for rule in self.ignorePatterns:
+			if rule.match(fileName):
+				return True
+		return False
+	
+	def isKept (self, fileName):
+		if self.keepPatterns is None:
+			self.keepPatterns = []
+			try:
+				for item in self.options.keep:
 					if item.endswith("/"):
 						item = item + ".*"
 					self.ignorePatterns.append(re.compile(item))
@@ -75,7 +91,8 @@ class Deployer:
 			fileCount = len(updatedFiles)
 			finished = 0
 		for fileName in updatedFiles:
-			destination.rename(fileName + ".new", fileName)
+			if (not self.isKept(fileName)) or (not destination.hasFile(fileName)):
+				destination.rename(fileName + ".new", fileName)
 			if listener:
 				finished += 1
 				listener.setValue((finished/fileCount) * 100)
