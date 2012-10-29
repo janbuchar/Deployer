@@ -11,7 +11,8 @@ class Options:
 		"username": None,
 		"password": None,
 		"path": None,
-		"ignore": None
+		"ignore": None,
+		"keep": None
 	}
 	
 	def __init__ (self):
