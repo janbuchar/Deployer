@@ -17,6 +17,12 @@ class Deployer:
 		self.updatedFiles = {}
 		self.redundantFiles = []
 	
+	def parseFilePatterns (self, patterns):
+		for item in patterns:
+			if item.endswith("/"):
+			item = item + ".*"
+			yield re.compile(item)
+	
 	def isIgnored (self, fileName):
 		"""
 		Check if given file should be ignored according to configuration
@@ -24,12 +30,8 @@ class Deployer:
 		if fileName == self.options.configFile:
 			return True
 		if self.ignorePatterns is None:
-			self.ignorePatterns = []
 			try:
-				for item in self.options.ignore:
-					if item.endswith("/"):
-						item = item + ".*"
-					self.ignorePatterns.append(re.compile(item))
+				self.ignorePatterns = self.parseFilePatterns(self.options.ignore)
 			except AttributeError:
 				pass
 		for rule in self.ignorePatterns:
@@ -39,15 +41,11 @@ class Deployer:
 	
 	def isKept (self, fileName):
 		if self.keepPatterns is None:
-			self.keepPatterns = []
 			try:
-				for item in self.options.keep:
-					if item.endswith("/"):
-						item = item + ".*"
-					self.ignorePatterns.append(re.compile(item))
+				self.keepPatterns = self.parseFilePatterns(self.options.keep)
 			except AttributeError:
 				pass
-		for rule in self.ignorePatterns:
+		for rule in self.keepPatterns:
 			if rule.match(fileName):
 				return True
 		return False
