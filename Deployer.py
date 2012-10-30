@@ -26,7 +26,7 @@ class Deployer:
 		if self.ignorePatterns is None:
 			self.ignorePatterns = []
 			try:
-				for item in self.options.ignored:
+				for item in self.options.ignore:
 					if item.endswith("/"):
 						item = item + ".*"
 					self.ignorePatterns.append(re.compile(item))
@@ -57,9 +57,7 @@ class Deployer:
 		Get a file name: file sum dictionary of source files
 		"""
 		if not self.sourceFiles:
-			for fileName, fileSum in source.getFiles():
-				if not self.isIgnored(fileName):
-					self.sourceFiles[fileName] = fileSum
+			self.sourceFiles = {name: checksum for name, checksum in source.getFiles() if not self.isIgnored(name)}
 		return self.sourceFiles
 	
 	def getUpdatedFiles (self, source, destination):
@@ -67,9 +65,7 @@ class Deployer:
 		Get a file name: file sum dictionary of updated files
 		"""
 		if not self.updatedFiles:
-			for fileName, fileSum in self.getSourceFiles(source).items():
-				if not (destination.hasFile(fileName) and destination.getHash(fileName) == fileSum):
-					self.updatedFiles[fileName] = fileSum
+			self.updatedFiles = {name: checksum for name, checksum in self.getSourceFiles(source).items() if not destination.hasFile(name, checksum)}
 		return self.updatedFiles
 	
 	def getRedundantFiles (self, source, destination):
@@ -77,10 +73,8 @@ class Deployer:
 		Get a list of files that are no longer present in the source but are still in the destination
 		"""
 		if not self.redundantFiles:
-			self.redundantFiles = destination.getFiles()
-			for fileName in (list(self.getSourceFiles(source).keys()) + [self.options.logFile]):
-				if fileName in self.redundantFiles:
-					self.redundantFiles.remove(fileName)
+			sourceFiles = list(self.getSourceFiles(source).keys()) + [self.options.logFile]
+			self.redundantFiles = [name for name in destination.getFiles() if not name in sourceFiles]
 		return self.redundantFiles
 	
 	def renameUpdatedFiles (self, destination, updatedFiles, listener = None):
@@ -314,10 +308,12 @@ class Destination:
 		"""
 		self.files.rebuild(sourceFiles, listener)
 	
-	def hasFile (self, fileName):
+	def hasFile (self, fileName, checksum = None):
 		"""
 		Is given file name present in the destination?
 		"""
+		if checksum:
+			return fileName in self.files and checksum == self.getHash(fileName)
 		return fileName in self.files
 		
 	def getHash (self, fileName):
