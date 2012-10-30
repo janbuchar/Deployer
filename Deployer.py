@@ -20,7 +20,7 @@ class Deployer:
 	def parseFilePatterns (self, patterns):
 		for item in patterns:
 			if item.endswith("/"):
-			item = item + ".*"
+				item = item + ".*"
 			yield re.compile(item)
 	
 	def isIgnored (self, fileName):
