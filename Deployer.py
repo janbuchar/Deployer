@@ -31,7 +31,7 @@ class Deployer:
 			return True
 		if self.ignorePatterns is None:
 			try:
-				self.ignorePatterns = self.parseFilePatterns(self.options.ignore)
+				self.ignorePatterns = list(self.parseFilePatterns(self.options.ignore))
 			except AttributeError:
 				pass
 		for rule in self.ignorePatterns:
@@ -42,7 +42,7 @@ class Deployer:
 	def isKept (self, fileName):
 		if self.keepPatterns is None:
 			try:
-				self.keepPatterns = self.parseFilePatterns(self.options.keep)
+				self.keepPatterns = list(self.parseFilePatterns(self.options.keep))
 			except AttributeError:
 				pass
 		for rule in self.keepPatterns:
