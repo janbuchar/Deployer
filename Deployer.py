@@ -193,13 +193,12 @@ class Source:
 	A representation of the local directory to be deployed
 	"""
 	
-	files = []
-	dirs = []
-	
 	def __init__ (self, path = None):
 		"""
 		Set up the source object, get a list of available files
 		"""
+		self.files = []
+		self.dirs = []
 		self.scanFiles(path)
 	
 	def scanFiles (self, path = None):
