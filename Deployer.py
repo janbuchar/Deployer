@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# TODO: config file, TESTING, IO encoding/decoding, empty directories with permissions...
+# TODO: config file, TESTING, IO encoding/decoding, empty directories with permissions... exceptions
 import re, os, sys, io, time
 
 class Deployer:
@@ -323,20 +323,22 @@ class DestinationInfo:
 	"""
 	An object representation of the file contatining the information about the destination
 	"""
-	files = {}
 	
 	def __init__ (self, connection, objectsFileName = ".objects", listener = None):
 		"""
 		Try to download the destination information file from the server and parse it
 		"""
+		self.files = {}
 		self.connection = connection
 		self.objectsFileName = objectsFileName
 		with io.StringIO() as objectsFile:
 			try:
 				connection.download(objectsFileName, objectsFile, listener = listener)
-				for line in objectsFile:
-					(objectName, objectHash) = line.split(":")
-					self.files[objectName.strip()] = objectHash.strip()
+				if objectsFile.read().find(':') >= 0:
+					objectsFile.seek()
+					for line in objectsFile:
+						(objectName, objectHash) = line.split(":")
+						self.files[objectName.strip()] = objectHash.strip()
 			except FileNotFoundError:
 				pass
 	
