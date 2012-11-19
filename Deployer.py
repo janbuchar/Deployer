@@ -385,5 +385,5 @@ if __name__ == "__main__":
 	except KeyboardInterrupt:
 		deployer.interrupt()
 	except ConnectionError as error:
-		self.output(str(error), error = True)
+		deployer.output(str(error), error = True)
 		sys.exit(1)
