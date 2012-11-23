@@ -18,10 +18,13 @@ class Deployer:
 		self.redundantFiles = []
 	
 	def parseFilePatterns (self, patterns):
-		for item in patterns:
-			if item.endswith("/"):
-				item = item + ".*"
-			yield re.compile(item)
+		if patterns:
+			for item in patterns:
+				if item.endswith("/"):
+					item = item + ".*"
+				yield re.compile(item)
+		else:
+			return []
 	
 	def isIgnored (self, fileName):
 		"""
@@ -335,7 +338,7 @@ class DestinationInfo:
 			try:
 				connection.download(objectsFileName, objectsFile, listener = listener)
 				if objectsFile.read().find(':') >= 0:
-					objectsFile.seek()
+					objectsFile.seek(0)
 					for line in objectsFile:
 						(objectName, objectHash) = line.split(":")
 						self.files[objectName.strip()] = objectHash.strip()
