@@ -12,7 +12,8 @@ class Options:
 		"password": None,
 		"path": None,
 		"ignore": None,
-		"keep": None
+		"keep": None,
+		"generateObjects": False
 	}
 	
 	def __init__ (self):
@@ -40,6 +41,7 @@ class ArgumentOptionsParser:
 		options = Options()
 		parser = ArgumentParser(description = "Deploy web applications to an FTP server")
 		parser.add_argument("-d", "--dry-run", dest = "dry", action = "store_true", help = "Perform a check without changing the files at the destination")
+		parser.add_argument("-g", "--generate-objects", dest = "generateObjects", action = "store_true", help = "Generate a local copy of the objects file")
 		parser.add_argument("-c", "--config-file", dest = "configFile", help = "The name of the (optional) configuration file (defaults to {0})".format(options.configFile))
 		parser.add_argument("-s", "--section", dest = "section", help = "The section of a configuration file to read from")
 		parser.add_argument("-y", "--yes", dest = "confirm", action = "store_false", help = "Apply changes without confirmation (Use reasonably)")

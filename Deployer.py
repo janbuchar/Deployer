@@ -94,6 +94,11 @@ class Deployer:
 		if listener:
 			listener.finish()
 	
+	def generateObjects (self, options):
+		self.options = options
+		with open("objects", "w") as objectsFile:
+			objectsFile.write('\n'.join([(name + ': ' + checksum) for name, checksum in self.getSourceFiles(Source(os.getcwd())).items()]))
+	
 	def run (self, connection, options):
 		"""
 		Process the deployment
@@ -378,13 +383,16 @@ if __name__ == "__main__":
 		args = ArgumentOptionsParser().load()
 		options = ConfigOptionsParser().load(args.configFile, args.section)
 		options += args
-		connection = FTPConnection(options.host, options.username, options.password, options.path)
 		if options.quiet:
 			deployer = Deployer()
 		else:
 			from ConsoleFrontend import ConsoleFrontend
 			deployer = Deployer(ConsoleFrontend())
-		deployer.run(connection, options)
+		if options.generateObjects:
+			deployer.generateObjects(options)
+		else:
+			connection = FTPConnection(options.host, options.username, options.password, options.path)
+			deployer.run(connection, options)
 	except KeyboardInterrupt:
 		deployer.interrupt()
 	except ConnectionError as error:
