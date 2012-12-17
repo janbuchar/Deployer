@@ -15,9 +15,11 @@ class ConsoleFrontend:
 			message = message + "\n"
 		stream.write(message)
 			
-	def confirm (self, question):
+	def confirm (self, question, default = True):
 		answer = input(question + " [Y/n] ")
-		if not answer or answer[0].lower() != "y":
+		if not answer:
+				return default
+		if answer[0].lower() != "y":
 			return False
 		return True
 
