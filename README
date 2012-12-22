@@ -1,6 +1,6 @@
-usage: Deployer.py [-h] [-d] [-c CONFIGFILE] [-s SECTION] [-y] [-q] [-l]
+usage: Deployer.py [-h] [-d] [-g] [-c CONFIGFILE] [-s SECTION] [-y] [-q] [-l]
                    [-a HOST] [-u USERNAME] [-p PASSWORD]
-                   [-i IGNORED [IGNORED ...]] [--path PATH]
+                   [-i IGNORE [IGNORE ...]] [--path PATH]
 
 Deploy web applications to an FTP server
 
@@ -8,9 +8,11 @@ optional arguments:
   -h, --help            show this help message and exit
   -d, --dry-run         Perform a check without changing the files at the
                         destination
+  -g, --generate-objects
+                        Generate a local copy of the objects file
   -c CONFIGFILE, --config-file CONFIGFILE
                         The name of the (optional) configuration file
-                        (defaults to deploy.ini)
+                        (defaults to deploy.json)
   -s SECTION, --section SECTION
                         The section of a configuration file to read from
   -y, --yes             Apply changes without confirmation (Use reasonably)
@@ -22,6 +24,6 @@ optional arguments:
                         FTP server username
   -p PASSWORD, --password PASSWORD
                         FTP server password
-  -i IGNORED [IGNORED ...], --ignore IGNORED [IGNORED ...]
+  -i IGNORE [IGNORE ...], --ignore IGNORE [IGNORE ...]
                         Ignored files/directories
   --path PATH           Path to the root of the application on the FTP server
