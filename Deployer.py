@@ -135,32 +135,32 @@ class Deployer:
 					destination.remove(fileName)
 			self.renameUpdatedFiles(destination, updatedFiles, self.getListener("Renaming successfully uploaded files"))
 			destination.rebuildFileList(sourceFiles, self.getListener("Updating object list"))
-			self.log(updatedFiles, redundantFiles)
+			if options.log:
+				self.log(updatedFiles, redundantFiles)
 	
 	def log (self, updatedFiles, redundantFiles):
 		"""
 		Log changes to a file in the destination
 		"""
-		if self.options.log:
-			with io.StringIO() as logFile:
-				self.output("Logging changes...", important = True)
-				try:
-					self.connection.download(self.options.logFile, logFile)
-					logFile.read() # We want to append to the log file
-				except FileNotFoundError:
-					pass
-				date = time.strftime("%d/%b/%Y %H:%M", time.gmtime())
-				changeList = []
-				if updatedFiles:
-					changeList.append("\t" + "Updated Files:")
-					for fileName in sorted(updatedFiles.keys()):
-						changeList.append("\t\t" + fileName)
-				if redundantFiles:
-					changeList.append("\t" + "Removed Files:")
-					for fileName in redundantFiles:
-						changeList.append("\t\t" + fileName)
-				logFile.write("[{0}]\n{1}\n".format(date, "\n".join(changeList)))
-				self.connection.upload(logFile, self.options.logFile, safe = True)
+		with io.StringIO() as logFile:
+			self.output("Logging changes...", important = True)
+			try:
+				self.connection.download(self.options.logFile, logFile)
+				logFile.read() # We want to append to the log file
+			except FileNotFoundError:
+				pass
+			date = time.strftime("%d/%b/%Y %H:%M", time.gmtime())
+			changeList = []
+			if updatedFiles:
+				changeList.append("\t" + "Updated Files:")
+				for fileName in sorted(updatedFiles.keys()):
+					changeList.append("\t\t" + fileName)
+			if redundantFiles:
+				changeList.append("\t" + "Removed Files:")
+				for fileName in redundantFiles:
+					changeList.append("\t\t" + fileName)
+			logFile.write("[{0}]\n{1}\n".format(date, "\n".join(changeList)))
+			self.connection.upload(logFile, self.options.logFile, safe = True)
 	
 	def output (self, message, important = False, error = False, breakLine = True):
 		"""
@@ -375,6 +375,16 @@ class DestinationInfo:
 		with io.StringIO() as objectsFile:
 			objectsFile.write("\n".join(["{0}: {1}".format(fileName, fileSum) for fileName, fileSum in sourceFiles.items()]))
 			self.connection.upload(objectsFile, self.objectsFileName, safe = True, listener = listener)
+
+class FileNotFoundError (Exception):
+	"""
+	An error raised if a file was not found on the server
+	"""
+
+class ConnectionError (Exception):
+	"""
+	An error raised if there is a problem with the connection
+	"""
 
 if __name__ == "__main__":
 	from FTPConnection import FTPConnection
