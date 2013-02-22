@@ -51,6 +51,20 @@ class FTPConnection:
 			self.mkdir(path)
 			self.ftp.cwd(path)
 	
+	def ls (self, path = None):
+		"""
+		List a directory
+		"""
+		if not path:
+			path = self.root
+		if not path.endswith('/'):
+			path += '/'
+		for filename, facts in self.ftp.mlsd(path, ['type']):
+			if facts['type'] == 'dir':
+				yield (path + filename, True)
+			if facts['type'] == 'file':
+				yield (path + filename, False)
+	
 	def mkdir (self, path):
 		"""
 		Make a directory on the server
@@ -79,14 +93,19 @@ class FTPConnection:
 		"""
 		self.ftp.rename(original, new)
 	
-	def remove (self, fileName):
+	def remove (self, fileName, isDir = False):
 		"""
 		Remove a file on the server
 		"""
-		try:
-			self.ftp.delete(fileName)
-		except ftplib.error_perm:
-			raise FileNotFoundError
+		if isDir:
+			for name, dir in self.ls(fileName):
+				self.remove(name, dir)
+			self.ftp.rmd(fileName)
+		else:
+			try:
+				self.ftp.delete(fileName)
+			except ftplib.error_perm:
+				raise FileNotFoundError
 	
 	def download (self, path, stream, listener = None):
 		"""

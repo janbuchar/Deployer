@@ -135,6 +135,12 @@ class Deployer:
 					destination.remove(fileName)
 			self.renameUpdatedFiles(destination, updatedFiles, self.getListener("Renaming successfully uploaded files"))
 			destination.rebuildFileList(sourceFiles, self.getListener("Updating object list"))
+			if options.clean:
+				for item in options.clean:
+					self.output("Cleaning {0}".format(item), important = True)
+					for name, isDir in destination.listDir(item):
+						self.output("Removing {0}".format(name))
+						destination.remove(name, isDir)
 			if options.log:
 				self.log(updatedFiles, redundantFiles)
 	
@@ -261,6 +267,12 @@ class Destination:
 			self.files = DestinationInfo(self.connection, listener = listener)
 		return self.files.getNames()
 	
+	def listDir (self, path):
+		"""
+		List a directory (WARNING: lists the actual contents of the directory, regardless of the objects file)
+		"""
+		return self.connection.ls(path)
+	
 	def download (self, path, fileName, listener = None):
 		"""
 		Download a file from the destination
@@ -298,12 +310,12 @@ class Destination:
 		"""
 		self.connection.rename(original, new)
 	
-	def remove (self, fileName):
+	def remove (self, fileName, isDir = False):
 		"""
 		Remove a file from the destination
 		"""
 		try:
-			self.connection.remove(fileName)
+			self.connection.remove(fileName, isDir)
 		except FileNotFoundError:
 			pass
 	
