@@ -135,7 +135,7 @@ class Deployer:
 					destination.remove(fileName)
 			self.renameUpdatedFiles(destination, updatedFiles, self.getListener("Renaming successfully uploaded files"))
 			destination.rebuildFileList(sourceFiles, self.getListener("Updating object list"))
-			if options.clean:
+			if options.enableClean and options.clean:
 				for item in options.clean:
 					self.output("Cleaning {0}".format(item), important = True)
 					for name, isDir in destination.listDir(item):

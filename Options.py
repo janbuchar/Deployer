@@ -13,6 +13,7 @@ class Options:
 	ignore = None
 	keep = None
 	clean = None
+	enableClean = True
 	generateObjects = False
 	
 	def __iadd__ (self, options):
@@ -42,6 +43,7 @@ class ArgumentOptionsParser:
 		parser.add_argument("-y", "--yes", dest = "confirm", action = "store_false", help = "Apply changes without confirmation (Use reasonably)")
 		parser.add_argument("-q", "--quiet", dest = "quiet", action = "store_true", help = "Process the script quietly, without any output")
 		parser.add_argument("-l", "--no-logging", dest = "log", action = "store_true", help = "Don't log anything on the server")
+		parser.add_argument("--no-clean", dest = "enableClean", action = "store_false", help = "Don't clean any directories")
 		parser.add_argument("-a", "--address", dest = "host", help = "FTP server address")
 		parser.add_argument("-u", "--username", dest = "username", help = "FTP server username")
 		parser.add_argument("-p", "--password", dest = "password", help = "FTP server password")
