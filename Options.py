@@ -12,6 +12,7 @@ class Options:
 	path = None
 	ignore = None
 	keep = None
+	clean = None
 	generateObjects = False
 	
 	def __iadd__ (self, options):
