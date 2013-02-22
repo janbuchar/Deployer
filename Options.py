@@ -1,28 +1,22 @@
 class Options:
-	defaults = {
-		"dry": False,
-		"configFile": "deploy.json",
-		"logFile": "deployer.log",
-		"section": None,
-		"confirm": True,
-		"quiet": False,
-		"log": True,
-		"host": None,
-		"username": None,
-		"password": None,
-		"path": None,
-		"ignore": None,
-		"keep": None,
-		"generateObjects": False
-	}
-	
-	def __init__ (self):
-		for option, value in self.defaults.items():
-			setattr(self, option, value)
+	dry = False
+	configFile = "deploy.json"
+	logFile = "deployer.log"
+	section = None
+	confirm = True
+	quiet = False
+	log = True
+	host = None
+	username = None
+	password = None
+	path = None
+	ignore = None
+	keep = None
+	generateObjects = False
 	
 	def __iadd__ (self, options):
 		for option, value in options.__dict__.items():
-			if value != self.defaults[option]:
+			if value != getattr(type(self), option):
 				setattr(self, option, value)
 		return self
 	
