@@ -8,25 +8,31 @@ class FTPConnection:
 	root = "/"
 	bufferSize = 4096
 	
-	def __init__ (self, host, username, password, path = None):
+	def __init__ (self, host, username, password, root = None):
 		"""
 		Set up the connection
 		"""
+		self.host = host
+		self.username = username
+		self.password = password
+		self.root = root
+		self.connect()
+	
+	def connect (self):
 		ftp = self.ftp = ftplib.FTP()
 		try:
-			ftp.connect(host)
+			ftp.connect(self.host)
 		except socket.error:
 			raise ConnectionError("Connecting to FTP server failed")
 		try:
-			ftp.login(username, password)
+			ftp.login(self.username, self.password)
 		except ftplib.error_perm:
 			raise ConnectionError("Authentication failed")
 		
-		if path:
-			if not path.startswith("/"):
-				path = "/" + path
-			self.cd(path)
-			self.root = path
+		if self.root:
+			if not self.root.startswith("/"):
+				self.root = "/" + self.root
+			self.cd(self.root)
 			self.cdRoot()
 	
 	def disconnect (self):
@@ -164,23 +170,30 @@ class FTPConnection:
 		if slashPosition:
 			self.cd(path[0 : slashPosition])
 		self.ftp.voidcmd("TYPE I")
-		connection = self.ftp.transfercmd("STOR {0}".format(remotePath))
-		while True:
-			fileBuffer = stream.read(self.bufferSize)
-			if not fileBuffer:
-				if listener:
-					listener.finish()
-				break
-			if not isinstance(fileBuffer, bytes):
-				fileBuffer = fileBuffer.encode(stream.encoding if stream.encoding else "utf-8")
-			sent = connection.send(fileBuffer)
+		try:
+			connection = self.ftp.transfercmd("STOR {0}".format(remotePath))
 			if listener:
-				finished += sent
-				if size is None:
-					listener.setValue(0)
-				else:
-					listener.setValue(round((finished/float(size))*100))
-		connection.close()
+				listener.setValue(0)
+			while True:
+				fileBuffer = stream.read(self.bufferSize)
+				if not fileBuffer:
+					if listener:
+						listener.finish()
+					break
+				if not isinstance(fileBuffer, bytes):
+					fileBuffer = fileBuffer.encode(stream.encoding if stream.encoding else "utf-8")
+				sent = connection.send(fileBuffer)
+				if listener:
+					finished += sent
+					if size is None:
+						listener.setValue(0)
+					else:
+						listener.setValue(round((finished/float(size))*100))
+			connection.close()
+		except BrokenPipeError:
+			self.connect()
+			self.upload(stream, path, safe, rename, listener)
+		
 		self.ftp.voidresp()
 		if safe and rename:
 			self.rename(remotePath, originalPath)
