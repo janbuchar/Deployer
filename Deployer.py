@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # TODO: config file, TESTING, IO encoding/decoding, empty directories with permissions... exceptions
 import re, os, sys, io, time
+from exceptions import FileNotFoundError, ConnectionError
 
 class Deployer:
 	"""
@@ -387,16 +388,6 @@ class DestinationInfo:
 		with io.StringIO() as objectsFile:
 			objectsFile.write("\n".join(["{0}: {1}".format(fileName, fileSum) for fileName, fileSum in sourceFiles.items()]))
 			self.connection.upload(objectsFile, self.objectsFileName, safe = True, listener = listener)
-
-class FileNotFoundError (Exception):
-	"""
-	An error raised if a file was not found on the server
-	"""
-
-class ConnectionError (Exception):
-	"""
-	An error raised if there is a problem with the connection
-	"""
 
 if __name__ == "__main__":
 	from FTPConnection import FTPConnection

@@ -1,5 +1,5 @@
 import ftplib, socket, os
-from Deployer import FileNotFoundError, ConnectionError
+from exceptions import FileNotFoundError, ConnectionError
 
 class FTPConnection:
 	"""
