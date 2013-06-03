@@ -27,3 +27,28 @@ optional arguments:
   -i IGNORE [IGNORE ...], --ignore IGNORE [IGNORE ...]
                         Ignored files/directories
   --path PATH           Path to the root of the application on the FTP server
+
+Example deploy.json
+{
+        "common": {
+                "ignore": [
+                        "tmp/",
+                        "log/",
+                        ".git"
+                ]
+        },
+
+        "production": {
+                "host": "host.tld",
+                "username": "user",
+                "password": "pass",
+                "path": "www/"
+        },
+
+        "demo": {
+                "host": "another.host.tld",
+                "username": "anotheruser",
+                "password": "anotherpass",
+                "path": "/"
+        }
+}
