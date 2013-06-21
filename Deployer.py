@@ -25,7 +25,7 @@ class Deployer:
 					item = item + ".*"
 				yield re.compile(item)
 		else:
-			return []
+			return
 	
 	def isIgnored (self, fileName):
 		"""
