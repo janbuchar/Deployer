@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # TODO: config file, TESTING, IO encoding/decoding, empty directories with permissions... exceptions
 import re, os, sys, io, time
 from exceptions import FileNotFoundError, ConnectionError
