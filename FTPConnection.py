@@ -77,7 +77,7 @@ class FTPConnection:
 		if not path.endswith('/'):
 			path += '/'
 		for filename in self.ftp.nlst(path):
-			yield (path + filename, self.isDir(path + filename))
+			yield (filename, self.isDir(filename))
 	
 	def mkdir (self, path):
 		"""
