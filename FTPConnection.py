@@ -57,6 +57,17 @@ class FTPConnection:
 			self.mkdir(path)
 			self.ftp.cwd(path)
 	
+	def isDir (self, path):
+		current = self.ftp.pwd()
+		
+		try:
+			self.ftp.cwd(path)
+			self.ftp.cwd(current)
+			return True
+		except ftplib.error_perm:
+			self.ftp.cwd(current)
+			return False
+	
 	def ls (self, path = None):
 		"""
 		List a directory
@@ -65,11 +76,8 @@ class FTPConnection:
 			path = self.root
 		if not path.endswith('/'):
 			path += '/'
-		for filename, facts in self.ftp.mlsd(path, ['type']):
-			if facts['type'] == 'dir':
-				yield (path + filename, True)
-			if facts['type'] == 'file':
-				yield (path + filename, False)
+		for filename in self.ftp.nlst(path):
+			yield (path + filename, self.isDir(path + filename))
 	
 	def mkdir (self, path):
 		"""
