@@ -21,9 +21,11 @@ class Deployer:
 	def parseFilePatterns (self, patterns):
 		if patterns:
 			for item in patterns:
-				if item.endswith("/"):
+				if item.startswith("*"):
+					item = ".*" + item
+				if item.endswith("*"):
 					item = item + ".*"
-				yield re.compile(item)
+				yield re.compile("^" + item + "$")
 		else:
 			return
 	
