@@ -34,7 +34,7 @@ Example deploy.json
                 "ignore": [
                         "tmp/",
                         "log/",
-                        ".git"
+                        "*/.git/*"
                 ]
         },
 

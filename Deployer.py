@@ -22,9 +22,10 @@ class Deployer:
 		if patterns:
 			for item in patterns:
 				if item.startswith("*"):
-					item = ".*" + item
-				if item.endswith("*"):
-					item = item + ".*"
+					item = ".*" + item[1:]
+				if item.endswith("*") or item.endswith('/'):
+					item = item[:-1] + ".*"
+				
 				yield re.compile("^" + item + "$")
 		else:
 			return
