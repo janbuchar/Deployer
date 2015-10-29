@@ -275,7 +275,7 @@ class Destination:
 		"""
 		List a directory (WARNING: lists the actual contents of the directory, regardless of the objects file)
 		"""
-		return self.connection.ls(path)
+		return {k: v for k, v in self.connection.ls(path) if k not in (".", "..")}.items()
 	
 	def download (self, path, fileName, listener = None):
 		"""
