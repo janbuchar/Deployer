@@ -21,6 +21,7 @@ class Deployer:
 	def parseFilePatterns (self, patterns):
 		if patterns:
 			for item in patterns:
+				item = item.replace(".", "\.")
 				if item.startswith("*"):
 					item = ".*" + item[1:]
 				if item.endswith("*") or item.endswith('/'):
